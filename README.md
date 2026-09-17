@@ -86,18 +86,30 @@ The app exercises **all four** Unsiloed capabilities:
 
 ## Architecture
 
-```
-                  ┌── classify ── extract (schema + citations) ──┐
-upload PDFs ──────┤                                              ├──▶ 7 typed entity tables
-(bank stmt,       └── render pages (pymupdf) ────────────────────┘    + bbox citations
- contracts,                                                                │
- tax, loans,            ┌──────────────────────────────────────────────────┤
- investments)          ▼                  ▼                ▼                 ▼
-                  Entity Explorer    Ask (NL→SQL)     Anomalies        Edit across PDFs
-                  + Evidence Viewer  read-only SQL    duplicate pay,   (Unsiloed Edit API,
-                  (click any value   not RAG; every   over-contract,   change once → rewrite
-                   → highlighted      row → evidence   valuation drop   everywhere)
-                   source region)                      … with evidence
+```mermaid
+graph TD
+    classDef inputNode fill:#1E293B,stroke:#38BDF8,stroke-width:2px,color:#F8FAFC;
+    classDef pipeNode fill:#0F172A,stroke:#818CF8,stroke-width:2px,color:#F8FAFC;
+    classDef dbNode fill:#334155,stroke:#38BDF8,stroke-width:2px,color:#FFF;
+    classDef featureNode fill:#064E3B,stroke:#34D399,stroke-width:2px,color:#FFF;
+
+    Upload["📄 Upload PDFs<br/><i>(Bank stmts, contracts, loans, tax)</i>"]:::inputNode
+
+    subgraph IngestionPipeline ["🔄 Unsiloed Extraction & Bounding-Box Pipeline"]
+        Upload --> Classify["🔍 Auto-Classify Schema"]:::pipeNode
+        Classify --> Extract["📑 Schema Extraction + Word BBox Coordinates"]:::pipeNode
+        Upload --> Render["🖼️ PyMuPDF Page Image Renderer"]:::pipeNode
+    end
+
+    Extract --> DB[("🗄️ PostgreSQL Relational Entities<br/><b>7 Typed Entity Tables + BBox Citations</b>")]:::dbNode
+    Render --> DB
+
+    subgraph OperationalFeatures ["⚡ Interactive Application Capabilities"]
+        DB --> Explorer["📊 Entity Explorer & Evidence Viewer<br/><i>(Click value ➔ highlight source PDF pixel)</i>"]:::featureNode
+        DB --> Ask["💬 Safe NL-to-SQL<br/><i>(sqlglot AST parse + read-only role)</i>"]:::featureNode
+        DB --> Anomaly["⚠️ Deterministic Anomaly Engine<br/><i>(Over-contract, duplicate payments)</i>"]:::featureNode
+        DB --> Edit["✏️ Cross-Document Edit API<br/><i>(Impact preview + coordinate rewrite)</i>"]:::featureNode
+    end
 ```
 
 The pipeline (`backend/app/pipeline/orchestrator.py`) ingests a PDF, classifies it,
